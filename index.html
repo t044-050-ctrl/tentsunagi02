@@ -1,0 +1,1600 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>てんつなぎ２ (Dot to Dot 2)</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: M PLUS Rounded 1c -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'M PLUS Rounded 1c', sans-serif;
+            touch-action: none; /* スクロール・ズーム操作を完全防止 */
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none; /* 長押し時のコンテキストメニュー・画像保存などを防止 */
+        }
+        /* キャンバスのアスペクト比維持用コンテナ (16:9) */
+        .aspect-16-9-container {
+            position: relative;
+            width: 100%;
+            max-width: 1150px;
+            max-height: calc(100vh - 76px);
+            aspect-ratio: 16 / 9;
+        }
+        /* スクロールバーの非表示 */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+<body class="bg-sky-50 h-screen w-screen overflow-hidden flex flex-col items-center justify-between p-2 text-slate-700">
+
+    <!-- ヘッダー（全ステージ並列表示 ＆ 1行すっきりレイアウト） -->
+    <header class="w-full max-w-6xl bg-white/95 backdrop-blur-md rounded-2xl shadow-sm border border-sky-200 px-2 sm:px-3 py-1 flex flex-nowrap items-center justify-between gap-1.5 z-10 shrink-0">
+        <!-- タイトル -->
+        <div class="flex items-center space-x-1 shrink-0">
+            <span class="text-xl sm:text-2xl">✏️</span>
+            <h1 class="text-sm sm:text-base font-black text-sky-800 tracking-wide whitespace-nowrap">てんつなぎ２</h1>
+        </div>
+
+        <!-- ステージ全並列リスト（横スクロール） -->
+        <div id="stage-list-container" class="flex items-center space-x-1 overflow-x-auto no-scrollbar py-0.5 px-1 max-w-[30vw] sm:max-w-[42vw] md:max-w-none rounded-xl bg-sky-100/60 border border-sky-200/60 shrink">
+            <!-- JavaScriptでステージボタンが生成されます -->
+        </div>
+
+        <!-- ヒント 0 1 2 ＆ 周回切替ボタン -->
+        <div class="flex items-center space-x-1.5 shrink-0">
+            <!-- 3段階ヒント -->
+            <div class="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200 text-xs">
+                <span class="font-bold text-slate-500 px-1 sm:px-1.5 whitespace-nowrap">ヒント</span>
+                <button id="hint-btn-0" class="hint-seg-btn px-2 py-0.5 rounded-lg font-bold transition bg-white text-sky-800 shadow-sm border border-sky-200">
+                    0
+                </button>
+                <button id="hint-btn-1" class="hint-seg-btn px-2 py-0.5 rounded-lg font-bold transition text-slate-600 hover:text-slate-900">
+                    1
+                </button>
+                <button id="hint-btn-2" class="hint-seg-btn px-2 py-0.5 rounded-lg font-bold transition text-slate-600 hover:text-slate-900">
+                    2
+                </button>
+            </div>
+
+            <!-- 周回切替ボタン -->
+            <button id="btn-round-toggle" class="px-2.5 py-1 rounded-xl font-black text-xs sm:text-sm bg-gradient-to-r from-sky-500 to-indigo-500 text-white shadow-sm hover:brightness-105 transition transform active:scale-95 whitespace-nowrap flex items-center gap-0.5">
+                <span id="round-label">1しゅうめ</span>
+            </button>
+        </div>
+
+        <!-- サウンド＆やりなおすボタン -->
+        <div class="flex items-center space-x-1 shrink-0">
+            <button id="btn-sound" class="p-1.5 rounded-xl bg-sky-100 hover:bg-sky-200 text-sky-800 transition font-bold text-xs sm:text-sm flex items-center justify-center" title="おとの ON/OFF">
+                <span id="sound-icon">🔊</span>
+            </button>
+            <button id="btn-reset" class="p-1.5 sm:px-2.5 sm:py-1 rounded-xl bg-rose-100 hover:bg-rose-200 text-rose-700 transition font-bold text-xs sm:text-sm flex items-center space-x-1" title="やりなおす">
+                <span>🔄</span>
+                <span class="hidden md:inline">やりなおす</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- メインキャンバス領域（16:9固定） -->
+    <main class="flex-1 w-full flex items-center justify-center p-1 overflow-hidden relative">
+        <div class="aspect-16-9-container bg-white rounded-3xl shadow-lg border-4 border-sky-200/80 overflow-hidden relative flex items-center justify-center">
+            <!-- ゲーム描画キャンバス -->
+            <canvas id="game-canvas" class="w-full h-full block cursor-pointer"></canvas>
+            
+            <!-- 紙ふぶき用オーバーレイキャンバス -->
+            <canvas id="confetti-canvas" class="w-full h-full absolute inset-0 pointer-events-none z-20"></canvas>
+
+            <!-- 完成時モーダルダイアログ -->
+            <div id="clear-modal" class="absolute inset-0 z-30 flex items-center justify-center transition-all duration-500 opacity-0 pointer-events-none bg-slate-900/40 backdrop-blur-sm">
+                <div id="modal-card" class="bg-white rounded-3xl p-5 sm:p-6 max-w-md w-[92%] text-center shadow-2xl transition-all duration-500 transform scale-90 border-4 border-sky-300">
+                    
+                    <!-- 中央モード用メインコンテンツ -->
+                    <div id="modal-full-content">
+                        <div class="text-5xl sm:text-6xl mb-2 animate-bounce">🌟</div>
+                        <h2 class="text-2xl sm:text-3xl font-black text-sky-600 mb-1">よくできました！</h2>
+                        <p id="modal-sub-text" class="text-slate-600 font-bold mb-5 text-sm sm:text-base">かんせーい！すごいね！</p>
+                    </div>
+
+                    <!-- 通常ステージ用 ボタン群 -->
+                    <div id="modal-btn-group-normal" class="flex flex-col sm:flex-row items-center justify-center gap-2">
+                        <button id="btn-modal-view-normal" class="w-full sm:w-auto px-4 py-2.5 rounded-2xl bg-sky-400 hover:bg-sky-500 text-sky-950 font-black text-base shadow transition transform active:scale-95 flex items-center justify-center gap-1">
+                            👀 えをみる
+                        </button>
+                        <button id="btn-modal-replay-normal" class="w-full sm:w-auto px-4 py-2.5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-base shadow transition transform active:scale-95 flex items-center justify-center gap-1">
+                            🔄 もういちど
+                        </button>
+                        <button id="btn-modal-next-normal" class="w-full sm:w-auto px-5 py-2.5 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white font-black text-base shadow-lg shadow-emerald-200 transition transform active:scale-95 flex items-center justify-center gap-1">
+                            つぎへ ➔
+                        </button>
+                    </div>
+
+                    <!-- 各周ラスト（9 らいおん）完了時専用 ボタン群 -->
+                    <div id="modal-btn-group-final" class="hidden flex-col items-center justify-center gap-2 w-full">
+                        <button id="btn-modal-view-final" class="w-full px-4 py-2 rounded-2xl bg-sky-400 hover:bg-sky-500 text-sky-950 font-black text-base shadow transition transform active:scale-95 flex items-center justify-center gap-1 mb-1">
+                            👀 えをみる
+                        </button>
+                        <div class="grid grid-cols-2 gap-2 w-full">
+                            <button id="btn-same-problem" class="px-3 py-3 rounded-2xl bg-teal-500 hover:bg-teal-600 text-white font-black text-sm sm:text-base shadow-md transition transform active:scale-95 leading-tight flex flex-col items-center justify-center">
+                                <span id="btn-final-left-top">おなじ</span>
+                                <span>もんだいを</span>
+                                <span>する</span>
+                            </button>
+                            <button id="btn-hard-problem" class="px-3 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-black text-sm sm:text-base shadow-md transition transform active:scale-95 leading-tight flex flex-col items-center justify-center">
+                                <span id="btn-final-right-top">むずかしい</span>
+                                <span>もんだいを</span>
+                                <span>する</span>
+                            </button>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- JavaScript ロジック -->
+    <script>
+        /**
+         * 全9ステージの細部イラスト描画関数 (DRAW_DETAILS)
+         */
+        const DRAW_DETAILS = {
+            tulip: (ctx, w, h, alpha) => {
+                ctx.save();
+                ctx.globalAlpha = alpha;
+
+                // 1. 茎
+                ctx.strokeStyle = '#22C55E';
+                ctx.lineWidth = Math.max(2, w * 0.006);
+                ctx.lineCap = 'round';
+                ctx.beginPath();
+                ctx.moveTo(w * 0.50, h * 0.46);
+                ctx.lineTo(w * 0.50, h * 0.88);
+                ctx.stroke();
+
+                // 2. 葉
+                ctx.fillStyle = '#4ADE80';
+                ctx.strokeStyle = '#166534';
+                ctx.lineWidth = Math.max(1.5, w * 0.004);
+                
+                // 左葉
+                ctx.beginPath();
+                ctx.moveTo(w * 0.50, h * 0.88);
+                ctx.quadraticCurveTo(w * 0.28, h * 0.78, w * 0.25, h * 0.58);
+                ctx.quadraticCurveTo(w * 0.38, h * 0.65, w * 0.50, h * 0.88);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+
+                // 右葉
+                ctx.beginPath();
+                ctx.moveTo(w * 0.50, h * 0.88);
+                ctx.quadraticCurveTo(w * 0.72, h * 0.78, w * 0.75, h * 0.58);
+                ctx.quadraticCurveTo(w * 0.62, h * 0.65, w * 0.50, h * 0.88);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+
+                // 3. 花びら
+                ctx.fillStyle = '#EF4444';
+                ctx.strokeStyle = '#B91C1C';
+                ctx.lineWidth = Math.max(2, w * 0.005);
+
+                ctx.beginPath();
+                ctx.moveTo(w * 0.50, h * 0.46);
+                ctx.lineTo(w * 0.39, h * 0.43);
+                ctx.lineTo(w * 0.28, h * 0.16);
+                ctx.lineTo(w * 0.39, h * 0.28);
+                ctx.lineTo(w * 0.50, h * 0.16);
+                ctx.lineTo(w * 0.61, h * 0.28);
+                ctx.lineTo(w * 0.72, h * 0.16);
+                ctx.lineTo(w * 0.61, h * 0.43);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+
+                // ほっぺ
+                ctx.fillStyle = 'rgba(251, 113, 133, 0.4)';
+                ctx.beginPath();
+                ctx.ellipse(w * 0.42, h * 0.36, w * 0.025, h * 0.016, 0, 0, Math.PI * 2);
+                ctx.ellipse(w * 0.58, h * 0.36, w * 0.025, h * 0.016, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.restore();
+            },
+
+            butterfly: (ctx, w, h, alpha) => {
+                ctx.save();
+                ctx.globalAlpha = alpha;
+
+                // 胴体
+                ctx.fillStyle = '#7E22CE';
+                ctx.beginPath();
+                ctx.ellipse(w * 0.50, h * 0.50, w * 0.025, h * 0.22, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                // 頭
+                ctx.beginPath();
+                ctx.arc(w * 0.50, h * 0.25, w * 0.035, 0, Math.PI * 2);
+                ctx.fill();
+
+                // 触角
+                ctx.strokeStyle = '#6B21A8';
+                ctx.lineWidth = Math.max(2, w * 0.004);
+                ctx.beginPath();
+                ctx.moveTo(w * 0.50, h * 0.23);
+                ctx.quadraticCurveTo(w * 0.44, h * 0.15, w * 0.40, h * 0.14);
+                ctx.moveTo(w * 0.50, h * 0.23);
+                ctx.quadraticCurveTo(w * 0.56, h * 0.15, w * 0.60, h * 0.14);
+                ctx.stroke();
+
+                // 触角の先
+                ctx.fillStyle = '#C084FC';
+                ctx.beginPath();
+                ctx.arc(w * 0.40, h * 0.14, w * 0.012, 0, Math.PI * 2);
+                ctx.arc(w * 0.60, h * 0.14, w * 0.012, 0, Math.PI * 2);
+                ctx.fill();
+
+                // 翅の丸模様
+                ctx.fillStyle = '#F472B6';
+                ctx.beginPath();
+                ctx.arc(w * 0.32, h * 0.34, w * 0.045, 0, Math.PI * 2);
+                ctx.arc(w * 0.68, h * 0.34, w * 0.045, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = '#FDE047';
+                ctx.beginPath();
+                ctx.arc(w * 0.33, h * 0.66, w * 0.03, 0, Math.PI * 2);
+                ctx.arc(w * 0.67, h * 0.66, w * 0.03, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.restore();
+            },
+
+            diamond: (ctx, w, h, alpha, round = 1) => {
+                ctx.save();
+                ctx.globalAlpha = alpha;
+
+                // 内側のカットライン
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+                ctx.lineWidth = Math.max(2, w * 0.004);
+
+                ctx.beginPath();
+                if (round === 1) {
+                    ctx.moveTo(w * 0.32, h * 0.22);
+                    ctx.lineTo(w * 0.50, h * 0.42);
+                    ctx.lineTo(w * 0.68, h * 0.22);
+
+                    ctx.moveTo(w * 0.18, h * 0.42);
+                    ctx.lineTo(w * 0.50, h * 0.42);
+                    ctx.lineTo(w * 0.82, h * 0.42);
+
+                    ctx.moveTo(w * 0.18, h * 0.42);
+                    ctx.lineTo(w * 0.50, h * 0.85);
+                    ctx.lineTo(w * 0.82, h * 0.42);
+
+                    ctx.moveTo(w * 0.50, h * 0.42);
+                    ctx.lineTo(w * 0.50, h * 0.85);
+                } else {
+                    ctx.moveTo(w * 0.32, h * 0.22);
+                    ctx.lineTo(w * 0.50, h * 0.42);
+                    ctx.lineTo(w * 0.68, h * 0.22);
+
+                    ctx.moveTo(w * 0.18, h * 0.42);
+                    ctx.lineTo(w * 0.82, h * 0.42);
+
+                    ctx.moveTo(w * 0.34, h * 0.635);
+                    ctx.lineTo(w * 0.50, h * 0.42);
+                    ctx.lineTo(w * 0.66, h * 0.635);
+
+                    ctx.moveTo(w * 0.18, h * 0.42);
+                    ctx.lineTo(w * 0.50, h * 0.85);
+                    ctx.lineTo(w * 0.82, h * 0.42);
+
+                    ctx.moveTo(w * 0.50, h * 0.42);
+                    ctx.lineTo(w * 0.50, h * 0.85);
+                }
+                ctx.stroke();
+
+                // ハイライト
+                ctx.fillStyle = '#FFFFFF';
+                ctx.beginPath();
+                ctx.arc(w * 0.38, h * 0.30, w * 0.012, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.restore();
+            },
+
+            cherry: (ctx, w, h, alpha, round = 1) => {
+                ctx.save();
+                ctx.globalAlpha = alpha;
+
+                let leftCenter, rightCenter, rx, ry;
+
+                if (round === 1) {
+                    leftCenter = { x: w * 0.33, y: h * 0.66 };
+                    rightCenter = { x: w * 0.67, y: h * 0.66 };
+                    rx = w * 0.0675;
+                    ry = h * 0.12;
+                } else {
+                    leftCenter = { x: w * 0.32, y: h * 0.67 };
+                    rightCenter = { x: w * 0.68, y: h * 0.67 };
+                    rx = w * 0.085;
+                    ry = h * 0.1511;
+                }
+
+                ctx.fillStyle = '#EF4444';
+                
+                // 左の実 (○)
+                ctx.beginPath();
+                ctx.ellipse(leftCenter.x, leftCenter.y, rx, ry, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                // 右の実 (○)
+                ctx.beginPath();
+                ctx.ellipse(rightCenter.x, rightCenter.y, rx, ry, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                // 軸
+                ctx.strokeStyle = '#22C55E';
+                ctx.lineWidth = Math.max(3.5, w * 0.007);
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+
+                ctx.beginPath();
+                if (round === 1) {
+                    ctx.moveTo(w * 0.33, h * 0.54);
+                    ctx.lineTo(w * 0.415, h * 0.37);
+                    ctx.lineTo(w * 0.50, h * 0.20);
+                    ctx.lineTo(w * 0.585, h * 0.37);
+                    ctx.lineTo(w * 0.67, h * 0.54);
+                } else {
+                    ctx.moveTo(w * 0.32, h * 0.5189);
+                    ctx.lineTo(w * 0.41, h * 0.38);
+                    ctx.lineTo(w * 0.50, h * 0.20);
+                    ctx.lineTo(w * 0.59, h * 0.38);
+                    ctx.lineTo(w * 0.68, h * 0.5189);
+                }
+                ctx.stroke();
+
+                // 葉っぱ
+                ctx.fillStyle = '#4ADE80';
+                ctx.strokeStyle = '#15803D';
+                ctx.lineWidth = Math.max(1.5, w * 0.004);
+                ctx.beginPath();
+                ctx.moveTo(w * 0.50, h * 0.20);
+                ctx.quadraticCurveTo(w * 0.64, h * 0.10, w * 0.74, h * 0.18);
+                ctx.quadraticCurveTo(w * 0.62, h * 0.26, w * 0.50, h * 0.20);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+
+                // 実のハイライト
+                const drawCherryHighlight = (cx, cy, currentRx, currentRy) => {
+                    ctx.fillStyle = '#FB7185';
+                    ctx.beginPath();
+                    ctx.ellipse(cx, cy + currentRy * 0.2, currentRx * 0.35, currentRy * 0.35, 0, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    ctx.fillStyle = '#FFFFFF';
+                    ctx.beginPath();
+                    ctx.ellipse(cx - currentRx * 0.35, cy - currentRy * 0.35, currentRx * 0.22, currentRy * 0.22, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                };
+
+                drawCherryHighlight(leftCenter.x, leftCenter.y, rx, ry);
+                drawCherryHighlight(rightCenter.x, rightCenter.y, rx, ry);
+
+                ctx.restore();
+            },
+
+            beetle: (ctx, w, h, alpha) => {
+                ctx.save();
+                ctx.globalAlpha = alpha;
+
+                // 目とほっぺ
+                ctx.fillStyle = '#F43F5E';
+                ctx.beginPath();
+                ctx.arc(w * 0.37, h * 0.52, w * 0.035, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = '#FFFFFF';
+                ctx.beginPath();
+                ctx.arc(w * 0.31, h * 0.49, w * 0.02, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = '#0F172A';
+                ctx.beginPath();
+                ctx.arc(w * 0.31, h * 0.49, w * 0.012, 0, Math.PI * 2);
+                ctx.fill();
+
+                // 細い足
+                ctx.strokeStyle = '#451A03';
+                ctx.lineWidth = Math.max(2, w * 0.005);
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+
+                const legs = [
+                    [{x: 0.42, y: 0.58}, {x: 0.38, y: 0.66}, {x: 0.28, y: 0.67}],
+                    [{x: 0.55, y: 0.62}, {x: 0.52, y: 0.74}, {x: 0.53, y: 0.80}],
+                    [{x: 0.70, y: 0.64}, {x: 0.70, y: 0.76}, {x: 0.75, y: 0.83}]
+                ];
+                legs.forEach(pts => {
+                    ctx.beginPath();
+                    ctx.moveTo(w * pts[0].x, h * pts[0].y);
+                    ctx.lineTo(w * pts[1].x, h * pts[1].y);
+                    ctx.lineTo(w * pts[2].x, h * pts[2].y);
+                    ctx.stroke();
+                });
+
+                // つやのハイライト
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+                ctx.lineWidth = Math.max(2, w * 0.005);
+                ctx.beginPath();
+                ctx.arc(w * 0.68, h * 0.48, w * 0.16, Math.PI * 1.15, Math.PI * 1.45);
+                ctx.stroke();
+
+                ctx.restore();
+            },
+
+            rocket: (ctx, w, h, alpha) => {
+                ctx.save();
+                ctx.globalAlpha = alpha;
+
+                // 噴射炎
+                const fireGrad = ctx.createLinearGradient(0, h * 0.72, 0, h * 0.92);
+                fireGrad.addColorStop(0, '#FBBF24');
+                fireGrad.addColorStop(1, '#EF4444');
+                ctx.fillStyle = fireGrad;
+                ctx.beginPath();
+                ctx.moveTo(w * 0.44, h * 0.72);
+                ctx.lineTo(w * 0.36, h * 0.88);
+                ctx.lineTo(w * 0.50, h * 0.82);
+                ctx.lineTo(w * 0.64, h * 0.88);
+                ctx.lineTo(w * 0.56, h * 0.72);
+                ctx.closePath();
+                ctx.fill();
+
+                // 窓
+                ctx.fillStyle = '#E0F2FE';
+                ctx.strokeStyle = '#0284C7';
+                ctx.lineWidth = Math.max(2, w * 0.005);
+                ctx.beginPath();
+                ctx.arc(w * 0.50, h * 0.42, w * 0.08, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+
+                ctx.restore();
+            },
+
+            piano: (ctx, w, h, alpha) => {
+                ctx.save();
+                ctx.globalAlpha = alpha;
+
+                // 鍵盤領域
+                ctx.fillStyle = '#FFFFFF';
+                ctx.fillRect(w * 0.18, h * 0.64, w * 0.64, h * 0.11);
+                ctx.strokeRect(w * 0.18, h * 0.64, w * 0.64, h * 0.11);
+
+                // 白鍵の仕切り線
+                ctx.strokeStyle = '#94A3B8';
+                ctx.lineWidth = Math.max(1, w * 0.002);
+                const keys = 10;
+                const kw = (w * 0.64) / keys;
+                for (let i = 1; i < keys; i++) {
+                    ctx.beginPath();
+                    ctx.moveTo(w * 0.18 + kw * i, h * 0.64);
+                    ctx.lineTo(w * 0.18 + kw * i, h * 0.75);
+                    ctx.stroke();
+                }
+
+                // 黒鍵
+                ctx.fillStyle = '#0F172A';
+                const blackKeyIndices = [0, 1, 3, 4, 5, 7, 8];
+                blackKeyIndices.forEach(idx => {
+                    ctx.fillRect(w * 0.18 + kw * (idx + 0.7), h * 0.64, kw * 0.6, h * 0.065);
+                });
+
+                ctx.restore();
+            },
+
+            train: (ctx, w, h, alpha, round = 1) => {
+                ctx.save();
+                ctx.globalAlpha = alpha;
+
+                if (round === 1) {
+                    // 1周目（新幹線タイプ）
+                    ctx.beginPath();
+                    ctx.moveTo(w * 0.15, h * 0.65);
+                    ctx.lineTo(w * 0.25, h * 0.38);
+                    ctx.lineTo(w * 0.85, h * 0.35);
+                    ctx.lineTo(w * 0.85, h * 0.65);
+                    ctx.closePath();
+                    ctx.clip();
+
+                    ctx.fillStyle = '#86EFAC';
+                    ctx.fillRect(w * 0.10, h * 0.30, w * 0.80, h * 0.40);
+
+                    ctx.fillStyle = '#EC4899';
+                    ctx.fillRect(w * 0.10, h * 0.52, w * 0.80, h * 0.05);
+
+                    ctx.fillStyle = '#38BDF8';
+                    ctx.fillRect(w * 0.27, h * 0.42, w * 0.08, h * 0.07);
+                    ctx.fillRect(w * 0.37, h * 0.42, w * 0.08, h * 0.07);
+                    
+                    ctx.fillStyle = '#475569';
+                    ctx.fillRect(w * 0.48, h * 0.52, w * 0.04, h * 0.13);
+                    
+                    ctx.fillStyle = '#38BDF8';
+                    ctx.fillRect(w * 0.55, h * 0.42, w * 0.08, h * 0.07);
+                    ctx.fillRect(w * 0.65, h * 0.42, w * 0.08, h * 0.07);
+                    ctx.fillRect(w * 0.75, h * 0.42, w * 0.07, h * 0.07);
+                } else {
+                    // 2周目（在来線・連結電車タイプ：1両目と2両目を別々に塗り、間の空白には塗らない）
+                    
+                    // 1両目ボディ
+                    ctx.fillStyle = '#86EFAC';
+                    ctx.fillRect(w * 0.10, h * 0.45, w * 0.37, h * 0.20);
+
+                    // 1両目 帯
+                    ctx.fillStyle = '#EC4899';
+                    ctx.fillRect(w * 0.10, h * 0.57, w * 0.37, h * 0.035);
+
+                    // 1両目 窓
+                    ctx.fillStyle = '#38BDF8';
+                    ctx.fillRect(w * 0.15, h * 0.48, w * 0.08, h * 0.07);
+                    ctx.fillRect(w * 0.26, h * 0.48, w * 0.08, h * 0.07);
+                    ctx.fillRect(w * 0.36, h * 0.48, w * 0.08, h * 0.07);
+
+                    // 2両目ボディ
+                    ctx.fillStyle = '#86EFAC';
+                    ctx.fillRect(w * 0.53, h * 0.45, w * 0.37, h * 0.20);
+
+                    // 2両目 帯
+                    ctx.fillStyle = '#EC4899';
+                    ctx.fillRect(w * 0.53, h * 0.57, w * 0.37, h * 0.035);
+
+                    // 2両目 窓
+                    ctx.fillStyle = '#38BDF8';
+                    ctx.fillRect(w * 0.56, h * 0.48, w * 0.08, h * 0.07);
+                    ctx.fillRect(w * 0.66, h * 0.48, w * 0.08, h * 0.07);
+                    ctx.fillRect(w * 0.77, h * 0.48, w * 0.08, h * 0.07);
+
+                    // 連結部（1両目と2両目の接続パーツ）
+                    ctx.fillStyle = '#334155';
+                    ctx.fillRect(w * 0.47, h * 0.58, w * 0.06, h * 0.07);
+                }
+
+                ctx.restore();
+            },
+
+            lion: (ctx, w, h, alpha) => {
+                ctx.save();
+                ctx.globalAlpha = alpha;
+
+                const center = { x: w * 0.50, y: h * 0.48 };
+                const rx = w * 0.18;
+                const ry = h * 0.32;
+
+                // 顔（大きな正円）
+                ctx.fillStyle = '#FBBF24';
+                ctx.strokeStyle = '#D97706';
+                ctx.lineWidth = Math.max(3, w * 0.005);
+                ctx.beginPath();
+                ctx.ellipse(center.x, center.y, rx, ry, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+
+                // マズル（口元）
+                ctx.fillStyle = '#FEF3C7';
+                ctx.beginPath();
+                ctx.ellipse(center.x, center.y + h * 0.10, w * 0.06, h * 0.06, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                // 鼻
+                ctx.fillStyle = '#78350F';
+                ctx.beginPath();
+                ctx.moveTo(center.x - w * 0.022, center.y + h * 0.05);
+                ctx.lineTo(center.x + w * 0.022, center.y + h * 0.05);
+                ctx.lineTo(center.x, center.y + h * 0.09);
+                ctx.closePath();
+                ctx.fill();
+
+                // 目
+                const drawEye = (ex) => {
+                    ctx.fillStyle = '#1E293B';
+                    ctx.beginPath();
+                    ctx.arc(ex, center.y - h * 0.04, w * 0.018, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.fillStyle = '#FFFFFF';
+                    ctx.beginPath();
+                    ctx.arc(ex - w * 0.005, center.y - h * 0.048, w * 0.006, 0, Math.PI * 2);
+                    ctx.fill();
+                };
+                drawEye(center.x - w * 0.07);
+                drawEye(center.x + w * 0.07);
+
+                // ほっぺ
+                ctx.fillStyle = 'rgba(251, 113, 133, 0.4)';
+                ctx.beginPath();
+                ctx.arc(center.x - w * 0.09, center.y + h * 0.08, w * 0.025, 0, Math.PI * 2);
+                ctx.arc(center.x + w * 0.09, center.y + h * 0.08, w * 0.025, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.restore();
+            }
+        };
+
+        /**
+         * 1しゅうめ ステージ定義データ
+         */
+        const STAGES_R1 = [
+            {
+                id: 'tulip',
+                name: 'チューリップ',
+                vertices: [
+                    { x: 50, y: 88 }, { x: 38, y: 78 }, { x: 25, y: 58 }, { x: 38, y: 65 },
+                    { x: 50, y: 88 }, { x: 62, y: 65 }, { x: 75, y: 58 }, { x: 62, y: 78 },
+                    { x: 50, y: 88 }, { x: 50, y: 46 }, { x: 39, y: 43 }, { x: 28, y: 16 },
+                    { x: 39, y: 28 }, { x: 50, y: 16 }, { x: 61, y: 28 }, { x: 72, y: 16 },
+                    { x: 61, y: 43 }, { x: 50, y: 46 }
+                ],
+                fillColor: '#FF4D6D', strokeColor: '#C9184A', drawDetails: DRAW_DETAILS.tulip
+            },
+            {
+                id: 'butterfly',
+                name: 'ちょうちょ',
+                vertices: [
+                    { x: 50, y: 30 }, { x: 38, y: 12 }, { x: 14, y: 35 }, { x: 32, y: 52 },
+                    { x: 23, y: 62 }, { x: 36, y: 80 }, { x: 50, y: 72 }, { x: 64, y: 80 },
+                    { x: 77, y: 62 }, { x: 68, y: 52 }, { x: 86, y: 35 }, { x: 62, y: 12 },
+                    { x: 50, y: 30 }
+                ],
+                fillColor: '#F0ABFC', strokeColor: '#A855F7', drawDetails: DRAW_DETAILS.butterfly
+            },
+            {
+                id: 'diamond',
+                name: 'ダイヤ',
+                vertices: [
+                    { x: 32, y: 22 }, { x: 68, y: 22 }, { x: 82, y: 42 }, { x: 50, y: 85 },
+                    { x: 18, y: 42 }, { x: 32, y: 22 }, { x: 50, y: 42 }, { x: 68, y: 22 },
+                    { x: 82, y: 42 }, { x: 18, y: 42 }, { x: 50, y: 85 }, { x: 50, y: 42 }
+                ],
+                fillColor: '#67E8F9', strokeColor: '#0891B2', drawDetails: DRAW_DETAILS.diamond
+            },
+            {
+                id: 'cherry',
+                name: 'さくらんぼ',
+                vertices: [
+                    { x: 33, y: 54 }, { x: 39.75, y: 66 }, { x: 33, y: 78 }, { x: 26.25, y: 66 }, { x: 33, y: 54 },
+                    { x: 41.5, y: 37 }, { x: 50, y: 20 }, { x: 58.5, y: 37 }, { x: 67, y: 54 },
+                    { x: 73.75, y: 66 }, { x: 67, y: 78 }, { x: 60.25, y: 66 }, { x: 67, y: 54 }
+                ],
+                fillColor: '#F43F5E', strokeColor: '#BE123C', drawDetails: DRAW_DETAILS.cherry
+            },
+            {
+                id: 'beetle',
+                name: 'かぶとむし',
+                vertices: [
+                    { x: 36, y: 48 }, { x: 22, y: 30 }, { x: 15, y: 16 }, { x: 10, y: 12 }, { x: 14, y: 20 }, { x: 20, y: 13 }, { x: 22, y: 22 }, { x: 30, y: 38 }, { x: 40, y: 44 },
+                    { x: 44, y: 36 }, { x: 65, y: 35 }, { x: 87, y: 55 }, { x: 75, y: 75 }, { x: 44, y: 60 }, { x: 31, y: 49 }, { x: 36, y: 48 }
+                ],
+                fillColor: '#B45309', strokeColor: '#78350F', drawDetails: DRAW_DETAILS.beetle
+            },
+            {
+                id: 'rocket',
+                name: 'ロケット',
+                vertices: [
+                    { x: 50, y: 12 }, { x: 65, y: 32 }, { x: 65, y: 51 }, { x: 65, y: 70 },
+                    { x: 80, y: 72 }, { x: 72, y: 78 }, { x: 65, y: 70 }, { x: 50, y: 82 },
+                    { x: 35, y: 70 }, { x: 20, y: 72 }, { x: 28, y: 78 }, { x: 35, y: 70 },
+                    { x: 35, y: 51 }, { x: 35, y: 32 }, { x: 50, y: 12 }
+                ],
+                fillColor: '#38BDF8', strokeColor: '#0284C7', drawDetails: DRAW_DETAILS.rocket
+            },
+            {
+                id: 'piano',
+                name: 'ピアノ',
+                vertices: [
+                    { x: 18, y: 75 }, { x: 18, y: 40 }, { x: 28, y: 22 }, { x: 48, y: 20 },
+                    { x: 68, y: 38 }, { x: 82, y: 50 }, { x: 82, y: 64 }, { x: 82, y: 75 },
+                    { x: 50, y: 75 }, { x: 18, y: 75 }
+                ],
+                fillColor: '#C084FC', strokeColor: '#7E22CE', drawDetails: DRAW_DETAILS.piano
+            },
+            {
+                id: 'train',
+                name: 'でんしゃ',
+                vertices: [
+                    { x: 15, y: 65 }, { x: 25, y: 38 }, { x: 42, y: 35 }, { x: 37, y: 30 },
+                    { x: 42, y: 24 }, { x: 47, y: 30 }, { x: 42, y: 35 }, { x: 64, y: 35 },
+                    { x: 59, y: 30 }, { x: 64, y: 24 }, { x: 69, y: 30 }, { x: 64, y: 35 },
+                    { x: 85, y: 35 }, { x: 85, y: 65 }, { x: 50, y: 65 }, { x: 15, y: 65 }
+                ],
+                fillColor: '#4ADE80', strokeColor: '#15803D', drawDetails: DRAW_DETAILS.train
+            },
+            {
+                id: 'lion',
+                name: 'ライオン',
+                vertices: [
+                    { x: 50, y: 8 },  { x: 58, y: 18 }, { x: 66, y: 14 }, { x: 72, y: 24 },
+                    { x: 80, y: 26 }, { x: 78, y: 38 }, { x: 84, y: 50 }, { x: 78, y: 62 },
+                    { x: 80, y: 74 }, { x: 72, y: 76 }, { x: 66, y: 84 }, { x: 58, y: 80 },
+                    { x: 50, y: 91 }, { x: 42, y: 80 }, { x: 34, y: 84 }, { x: 28, y: 76 },
+                    { x: 20, y: 74 }, { x: 22, y: 62 }, { x: 16, y: 50 }, { x: 22, y: 38 },
+                    { x: 20, y: 26 }, { x: 28, y: 24 }, { x: 34, y: 14 }, { x: 42, y: 18 },
+                    { x: 50, y: 8 }
+                ],
+                fillColor: '#FBBF24', strokeColor: '#D97706', drawDetails: DRAW_DETAILS.lion
+            }
+        ];
+
+        /**
+         * 2しゅうめ ステージ定義データ
+         */
+        const STAGES_R2 = [
+            {
+                id: 'tulip',
+                name: 'チューリップ',
+                vertices: [
+                    { x: 50, y: 90 },
+                    { x: 44, y: 84 }, { x: 36, y: 76 }, { x: 28, y: 66 }, { x: 24, y: 56 }, { x: 30, y: 58 }, { x: 38, y: 66 }, { x: 46, y: 76 }, { x: 50, y: 90 },
+                    { x: 54, y: 76 }, { x: 62, y: 66 }, { x: 70, y: 58 }, { x: 76, y: 56 }, { x: 72, y: 66 }, { x: 64, y: 76 }, { x: 56, y: 84 }, { x: 50, y: 90 },
+                    { x: 50, y: 68 }, { x: 50, y: 46 },
+                    { x: 39, y: 43 }, { x: 30, y: 38 }, { x: 26, y: 30 }, { x: 32, y: 14 }, { x: 39, y: 28 }, { x: 44, y: 20 }, { x: 50, y: 14 }, { x: 56, y: 20 }, { x: 61, y: 28 }, { x: 68, y: 14 }, { x: 74, y: 30 }, { x: 70, y: 38 }, { x: 61, y: 43 }, { x: 50, y: 46 }
+                ],
+                fillColor: '#FF4D6D', strokeColor: '#C9184A', drawDetails: DRAW_DETAILS.tulip
+            },
+            {
+                id: 'butterfly',
+                name: 'ちょうちょ',
+                vertices: [
+                    { x: 50, y: 24 }, { x: 44, y: 18 }, { x: 38, y: 15 }, { x: 25, y: 15 },
+                    { x: 14, y: 18 }, { x: 8, y: 28 }, { x: 8, y: 40 }, { x: 18, y: 48 },
+                    { x: 32, y: 52 }, { x: 22, y: 56 }, { x: 16, y: 64 }, { x: 18, y: 76 },
+                    { x: 25, y: 84 }, { x: 38, y: 82 }, { x: 48, y: 76 }, { x: 50, y: 88 },
+                    { x: 52, y: 76 }, { x: 62, y: 82 }, { x: 75, y: 84 }, { x: 82, y: 76 },
+                    { x: 84, y: 64 }, { x: 78, y: 56 }, { x: 68, y: 52 }, { x: 82, y: 48 },
+                    { x: 92, y: 40 }, { x: 92, y: 28 }, { x: 86, y: 18 }, { x: 75, y: 15 },
+                    { x: 62, y: 15 }, { x: 56, y: 18 }, { x: 50, y: 24 }
+                ],
+                fillColor: '#F0ABFC', strokeColor: '#A855F7', drawDetails: DRAW_DETAILS.butterfly
+            },
+            {
+                id: 'diamond',
+                name: 'ダイヤ',
+                vertices: [
+                    { x: 32, y: 22 }, { x: 50, y: 22 }, { x: 68, y: 22 }, { x: 82, y: 42 }, 
+                    { x: 66, y: 63.5 }, { x: 50, y: 85 }, { x: 34, y: 63.5 }, { x: 18, y: 42 }, 
+                    { x: 32, y: 22 }, { x: 50, y: 42 }, { x: 68, y: 22 }, { x: 82, y: 42 }, 
+                    { x: 50, y: 42 }, { x: 18, y: 42 }, { x: 50, y: 85 }, { x: 50, y: 42 }
+                ],
+                fillColor: '#67E8F9', strokeColor: '#0891B2', drawDetails: DRAW_DETAILS.diamond
+            },
+            {
+                id: 'cherry',
+                name: 'さくらんぼ',
+                vertices: [
+                    { x: 32.0, y: 51.89 }, { x: 38.0, y: 56.32 }, { x: 40.5, y: 67.00 }, { x: 38.0, y: 77.68 }, { x: 32.0, y: 82.11 }, { x: 26.0, y: 77.68 }, { x: 23.5, y: 67.00 }, { x: 26.0, y: 56.32 }, { x: 32.0, y: 51.89 },
+                    { x: 41.0, y: 38.00 }, { x: 50.0, y: 20.00 }, { x: 59.0, y: 38.00 },
+                    { x: 68.0, y: 51.89 }, { x: 62.0, y: 56.32 }, { x: 59.5, y: 67.00 }, { x: 62.0, y: 77.68 }, { x: 68.0, y: 82.11 }, { x: 74.0, y: 77.68 }, { x: 76.5, y: 67.00 }, { x: 74.0, y: 56.32 }, { x: 68.0, y: 51.89 }
+                ],
+                fillColor: '#F43F5E', strokeColor: '#BE123C', drawDetails: DRAW_DETAILS.cherry
+            },
+            {
+                id: 'beetle',
+                name: 'かぶとむし',
+                vertices: [
+                    { x: 36, y: 48 }, { x: 28, y: 36 }, { x: 20, y: 26 }, { x: 15, y: 16 }, { x: 10, y: 12 }, { x: 14, y: 20 }, { x: 20, y: 13 }, { x: 22, y: 22 }, { x: 28, y: 30 }, { x: 34, y: 38 }, { x: 40, y: 44 },
+                    { x: 44, y: 36 }, { x: 54, y: 32 }, { x: 65, y: 35 }, { x: 78, y: 44 }, { x: 87, y: 55 }, { x: 84, y: 68 }, { x: 75, y: 75 }, { x: 60, y: 70 }, { x: 44, y: 60 }, { x: 31, y: 49 }, { x: 36, y: 48 }
+                ],
+                fillColor: '#B45309', strokeColor: '#78350F', drawDetails: DRAW_DETAILS.beetle
+            },
+            {
+                id: 'rocket',
+                name: 'ロケット',
+                vertices: [
+                    { x: 50, y: 12 }, { x: 58, y: 18 }, { x: 65, y: 30 }, { x: 65, y: 48 },
+                    { x: 65, y: 65 }, { x: 75, y: 72 }, { x: 85, y: 80 }, { x: 74, y: 78 },
+                    { x: 62, y: 76 }, { x: 60, y: 82 }, { x: 56, y: 90 }, { x: 53, y: 80 },
+                    { x: 50, y: 84 }, { x: 47, y: 80 }, { x: 44, y: 90 }, { x: 40, y: 82 },
+                    { x: 38, y: 76 }, { x: 26, y: 78 }, { x: 15, y: 80 }, { x: 25, y: 72 },
+                    { x: 35, y: 65 }, { x: 35, y: 48 }, { x: 35, y: 30 }, { x: 42, y: 18 },
+                    { x: 50, y: 12 }
+                ],
+                fillColor: '#38BDF8', strokeColor: '#0284C7', drawDetails: DRAW_DETAILS.rocket
+            },
+            {
+                id: 'piano',
+                name: 'ピアノ',
+                vertices: [
+                    { x: 18, y: 75 }, { x: 18, y: 64 }, { x: 18, y: 50 }, { x: 18, y: 40 }, 
+                    { x: 23, y: 28 }, { x: 28, y: 22 }, { x: 38, y: 20 }, { x: 48, y: 20 }, 
+                    { x: 58, y: 26 }, { x: 68, y: 38 }, { x: 76, y: 44 }, { x: 82, y: 50 }, 
+                    { x: 82, y: 64 }, { x: 82, y: 75 }, { x: 66, y: 75 }, { x: 50, y: 75 }, 
+                    { x: 34, y: 75 }, { x: 18, y: 75 }
+                ],
+                fillColor: '#C084FC', strokeColor: '#7E22CE', drawDetails: DRAW_DETAILS.piano
+            },
+            {
+                id: 'train',
+                name: 'でんしゃ',
+                vertices: [
+                    { x: 10, y: 65 }, { x: 10, y: 45 }, { x: 18, y: 45 }, 
+                    { x: 15, y: 38 }, { x: 18, y: 32 }, { x: 21, y: 38 }, { x: 18, y: 45 },
+                    { x: 30, y: 45 }, 
+                    { x: 27, y: 38 }, { x: 30, y: 32 }, { x: 33, y: 38 }, { x: 30, y: 45 },
+                    { x: 47, y: 45 }, { x: 47, y: 58 }, { x: 53, y: 58 }, { x: 53, y: 45 },
+                    { x: 61, y: 45 }, 
+                    { x: 58, y: 38 }, { x: 61, y: 32 }, { x: 64, y: 38 }, { x: 61, y: 45 },
+                    { x: 73, y: 45 }, 
+                    { x: 70, y: 38 }, { x: 73, y: 32 }, { x: 76, y: 38 }, { x: 73, y: 45 },
+                    { x: 90, y: 45 }, { x: 90, y: 65 }, { x: 50, y: 65 }, { x: 10, y: 65 }
+                ],
+                fillColor: '#4ADE80', strokeColor: '#15803D', drawDetails: DRAW_DETAILS.train
+            },
+            {
+                id: 'lion',
+                name: 'ライオン',
+                vertices: [
+                    { x: 50, y: 91 }, { x: 42, y: 80 }, { x: 34, y: 84 }, { x: 28, y: 76 },
+                    { x: 20, y: 74 }, { x: 22, y: 62 }, { x: 16, y: 50 }, { x: 22, y: 38 },
+                    { x: 20, y: 26 }, { x: 28, y: 24 }, { x: 34, y: 14 }, { x: 42, y: 18 },
+                    { x: 50, y: 8 },  { x: 58, y: 18 }, { x: 66, y: 14 }, { x: 72, y: 24 },
+                    { x: 80, y: 26 }, { x: 78, y: 38 }, { x: 84, y: 50 }, { x: 78, y: 62 },
+                    { x: 80, y: 74 }, { x: 72, y: 76 }, { x: 66, y: 84 }, { x: 58, y: 80 },
+                    { x: 50, y: 91 },
+                    { x: 50.0, y: 80.0 }, { x: 62.7, y: 70.6 }, { x: 68.0, y: 48.0 }, { x: 62.7, y: 25.4 }, { x: 50.0, y: 16.0 }, { x: 37.3, y: 25.4 }, { x: 32.0, y: 48.0 }, { x: 37.3, y: 70.6 }, { x: 50.0, y: 80.0 }
+                ],
+                fillColor: '#FBBF24', strokeColor: '#D97706', drawDetails: DRAW_DETAILS.lion
+            }
+        ];
+
+        /**
+         * Web Audio API サウンドマネージャー
+         */
+        class SoundManager {
+            constructor() {
+                this.ctx = null;
+                this.muted = false;
+            }
+
+            init() {
+                if (!this.ctx) {
+                    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                    if (AudioCtx) {
+                        this.ctx = new AudioCtx();
+                    }
+                }
+                if (this.ctx && this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            }
+
+            playTap(index) {
+                if (this.muted) return;
+                this.init();
+                if (!this.ctx) return;
+
+                try {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+
+                    const baseFreq = 261.63; // C4
+                    const scaleOffsets = [0, 2, 4, 5, 7, 9, 11, 12, 14, 16, 17, 19, 21, 23, 24, 26, 28, 29, 31, 33, 35, 36];
+                    const semitone = scaleOffsets[index % scaleOffsets.length] + Math.floor(index / scaleOffsets.length) * 12;
+                    const freq = baseFreq * Math.pow(2, semitone / 12);
+
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+
+                    gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.25);
+
+                    osc.start(this.ctx.currentTime);
+                    osc.stop(this.ctx.currentTime + 0.25);
+                } catch (e) {
+                    console.error(e);
+                }
+            }
+
+            playFanfare() {
+                if (this.muted) return;
+                this.init();
+                if (!this.ctx) return;
+
+                try {
+                    const notes = [
+                        { note: 0, time: 0, duration: 0.15 },
+                        { note: 4, time: 0.15, duration: 0.15 },
+                        { note: 7, time: 0.30, duration: 0.15 },
+                        { note: 12, time: 0.45, duration: 0.5 }
+                    ];
+
+                    const baseFreq = 523.25; // C5
+                    notes.forEach(n => {
+                        const osc = this.ctx.createOscillator();
+                        const gain = this.ctx.createGain();
+                        osc.connect(gain);
+                        gain.connect(this.ctx.destination);
+
+                        const freq = baseFreq * Math.pow(2, n.note / 12);
+                        osc.type = 'triangle';
+                        osc.frequency.setValueAtTime(freq, this.ctx.currentTime + n.time);
+
+                        gain.gain.setValueAtTime(0.3, this.ctx.currentTime + n.time);
+                        gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + n.time + n.duration);
+
+                        osc.start(this.ctx.currentTime + n.time);
+                        osc.stop(this.ctx.currentTime + n.time + n.duration);
+                    });
+                } catch (e) {
+                    console.error(e);
+                }
+            }
+        }
+
+        /**
+         * 紙ふぶき（Confetti）マネージャー
+         */
+        class ConfettiManager {
+            constructor(canvas) {
+                this.canvas = canvas;
+                this.ctx = canvas.getContext('2d');
+                this.particles = [];
+                this.animating = false;
+            }
+
+            resize() {
+                const rect = this.canvas.getBoundingClientRect();
+                this.canvas.width = rect.width;
+                this.canvas.height = rect.height;
+            }
+
+            start() {
+                this.resize();
+                this.particles = [];
+                const colors = ['#06B6D4', '#3B82F6', '#10B981', '#FBBF24', '#8B5CF6', '#EC4899'];
+                for (let i = 0; i < 85; i++) {
+                    this.particles.push({
+                        x: this.canvas.width * 0.5,
+                        y: this.canvas.height * 0.5,
+                        vx: (Math.random() - 0.5) * 18,
+                        vy: (Math.random() - 0.7) * 18,
+                        size: Math.random() * 8 + 6,
+                        color: colors[Math.floor(Math.random() * colors.length)],
+                        rotation: Math.random() * Math.PI * 2,
+                        vRot: (Math.random() - 0.5) * 0.2,
+                        opacity: 1
+                    });
+                }
+                this.animating = true;
+                this.loop();
+            }
+
+            stop() {
+                this.animating = false;
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+            }
+
+            loop() {
+                if (!this.animating) return;
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+                let alive = false;
+                this.particles.forEach(p => {
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    p.vy += 0.35;
+                    p.vx *= 0.98;
+                    p.rotation += p.vRot;
+                    if (p.y > this.canvas.height * 0.65) {
+                        p.opacity -= 0.02;
+                    }
+
+                    if (p.opacity > 0) {
+                        alive = true;
+                        this.ctx.save();
+                        this.ctx.globalAlpha = Math.max(0, p.opacity);
+                        this.ctx.translate(p.x, p.y);
+                        this.ctx.rotate(p.rotation);
+                        this.ctx.fillStyle = p.color;
+                        this.ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
+                        this.ctx.restore();
+                    }
+                });
+
+                if (alive) {
+                    requestAnimationFrame(() => this.loop());
+                } else {
+                    this.animating = false;
+                }
+            }
+        }
+
+        /**
+         * メインゲームアプリケーション
+         */
+        class DotGame {
+            constructor() {
+                this.canvas = document.getElementById('game-canvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.sound = new SoundManager();
+                this.confetti = new ConfettiManager(document.getElementById('confetti-canvas'));
+
+                this.currentRound = 1;
+                this.activeStagesR2 = [];
+                this.buttonShowName = new Array(9).fill(false);
+
+                this.currentStageIndex = 0;
+                this.currentIndex = 0;
+                this.isCompleted = false;
+                this.completionProgress = 0;
+
+                this.clearTimer = null;
+                this.hintLevel = 0;
+                this.pulseTimer = 0;
+
+                // DOM
+                this.stageListContainer = document.getElementById('stage-list-container');
+                this.btnRoundToggleEl = document.getElementById('btn-round-toggle');
+                this.roundLabelEl = document.getElementById('round-label');
+                this.btnSoundEl = document.getElementById('btn-sound');
+                this.soundIconEl = document.getElementById('sound-icon');
+                this.btnResetEl = document.getElementById('btn-reset');
+
+                this.clearModalEl = document.getElementById('clear-modal');
+                this.modalCardEl = document.getElementById('modal-card');
+                this.modalFullContentEl = document.getElementById('modal-full-content');
+                this.modalSubTextEl = document.getElementById('modal-sub-text');
+
+                this.modalBtnGroupNormal = document.getElementById('modal-btn-group-normal');
+                this.modalBtnGroupFinal = document.getElementById('modal-btn-group-final');
+
+                this.btnModalViewNormal = document.getElementById('btn-modal-view-normal');
+                this.btnModalViewFinal = document.getElementById('btn-modal-view-final');
+                this.btnFinalLeftTop = document.getElementById('btn-final-left-top');
+                this.btnFinalRightTop = document.getElementById('btn-final-right-top');
+
+                this.init();
+            }
+
+            shuffleArray(array) {
+                const arr = [...array];
+                for (let i = arr.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [arr[i], arr[j]] = [arr[j], arr[i]];
+                }
+                return arr;
+            }
+
+            get currentStages() {
+                return this.currentRound === 1 ? STAGES_R1 : this.activeStagesR2;
+            }
+
+            init() {
+                this.activeStagesR2 = this.shuffleArray(STAGES_R2);
+                this.renderStageButtons();
+                this.setupHintControl();
+                this.setupEventListeners();
+                this.resizeCanvas();
+                this.loadStage(0);
+
+                this.animate();
+            }
+
+            updateRoundUI() {
+                this.roundLabelEl.textContent = `${this.currentRound}しゅうめ`;
+                if (this.currentRound === 1) {
+                    this.btnRoundToggleEl.className = 'px-2.5 py-1 rounded-xl font-black text-xs sm:text-sm bg-gradient-to-r from-sky-500 to-indigo-500 text-white shadow-sm hover:brightness-105 transition transform active:scale-95 whitespace-nowrap flex items-center gap-0.5';
+                } else {
+                    this.btnRoundToggleEl.className = 'px-2.5 py-1 rounded-xl font-black text-xs sm:text-sm bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-sm hover:brightness-105 transition transform active:scale-95 whitespace-nowrap flex items-center gap-0.5';
+                }
+            }
+
+            startRound(round) {
+                this.currentRound = round;
+                this.buttonShowName = new Array(9).fill(false);
+                if (round === 2) {
+                    this.activeStagesR2 = this.shuffleArray(STAGES_R2);
+                }
+                this.updateRoundUI();
+                this.renderStageButtons();
+                this.loadStage(0);
+            }
+
+            renderStageButtons() {
+                this.stageListContainer.innerHTML = '';
+                const stages = this.currentStages;
+
+                stages.forEach((stage, idx) => {
+                    const btn = document.createElement('button');
+                    btn.id = `stage-btn-${idx}`;
+                    const showName = !!this.buttonShowName[idx];
+
+                    const selectedStageColor = this.currentRound === 1
+                        ? 'bg-gradient-to-r from-sky-500 to-indigo-500 text-white shadow-md ring-2 ring-sky-300 scale-105 border border-sky-500'
+                        : 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md ring-2 ring-purple-300 scale-105 border border-purple-500';
+                    btn.className = `px-2.5 py-1 rounded-lg text-xs font-bold whitespace-nowrap transition-all duration-200 shrink-0 ${
+                        idx === this.currentStageIndex
+                            ? selectedStageColor
+                            : 'bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200 hover:border-slate-300'
+                    }`;
+                    btn.textContent = showName ? stage.name : `ステージ ${idx + 1}`;
+                    
+                    let longPressTimer = null;
+                    let isLongPress = false;
+
+                    const startPress = (e) => {
+                        isLongPress = false;
+                        longPressTimer = setTimeout(() => {
+                            isLongPress = true;
+                            this.sound.init();
+                            this.buttonShowName[idx] = true;
+                            if (this.currentStageIndex !== idx) {
+                                this.loadStage(idx);
+                            } else {
+                                this.updateStageButtonsUI();
+                            }
+                        }, 500);
+                    };
+
+                    const cancelPress = () => {
+                        if (longPressTimer) {
+                            clearTimeout(longPressTimer);
+                            longPressTimer = null;
+                        }
+                    };
+
+                    const endPress = (e) => {
+                        if (longPressTimer) {
+                            clearTimeout(longPressTimer);
+                            longPressTimer = null;
+                        }
+                        if (!isLongPress) {
+                            // 通常のタップ（短押し）で「ステージ X」表示に戻す
+                            this.sound.init();
+                            this.buttonShowName[idx] = false;
+                            this.loadStage(idx);
+                            this.updateStageButtonsUI();
+                        }
+                    };
+
+                    btn.addEventListener('pointerdown', startPress);
+                    btn.addEventListener('pointerup', endPress);
+                    btn.addEventListener('pointerleave', cancelPress);
+                    btn.addEventListener('pointercancel', cancelPress);
+
+                    this.stageListContainer.appendChild(btn);
+                });
+            }
+
+            updateStageButtonsUI() {
+                const stages = this.currentStages;
+                stages.forEach((stage, idx) => {
+                    const btn = document.getElementById(`stage-btn-${idx}`);
+                    if (!btn) return;
+                    const showName = !!this.buttonShowName[idx];
+                    btn.textContent = showName ? stage.name : `ステージ ${idx + 1}`;
+
+                    if (idx === this.currentStageIndex) {
+                        // 周回切替ボタンと同じ色を、選択中のステージボタンにも適用する
+                        const selectedStageColor = this.currentRound === 1
+                            ? 'bg-gradient-to-r from-sky-500 to-indigo-500 text-white shadow-md ring-2 ring-sky-300 scale-105 border border-sky-500'
+                            : 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md ring-2 ring-purple-300 scale-105 border border-purple-500';
+                        btn.className = `px-2.5 py-1 rounded-lg text-xs font-bold whitespace-nowrap transition-all duration-200 shrink-0 ${selectedStageColor}`;
+                        btn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                    } else {
+                        btn.className = 'px-2.5 py-1 rounded-lg text-xs font-bold whitespace-nowrap transition-all duration-200 shrink-0 bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200 hover:border-slate-300';
+                    }
+                });
+            }
+
+            setupHintControl() {
+                const updateHintUI = (level) => {
+                    this.hintLevel = level;
+                    [0, 1, 2].forEach(lvl => {
+                        const btn = document.getElementById(`hint-btn-${lvl}`);
+                        if (lvl === level) {
+                            btn.className = 'hint-seg-btn px-2 py-0.5 rounded-lg font-bold transition bg-white text-sky-800 shadow-sm border border-sky-200';
+                        } else {
+                            btn.className = 'hint-seg-btn px-2 py-0.5 rounded-lg font-bold transition text-slate-600 hover:text-slate-900';
+                        }
+                    });
+                };
+
+                [0, 1, 2].forEach(lvl => {
+                    document.getElementById(`hint-btn-${lvl}`).addEventListener('click', () => {
+                        updateHintUI(lvl);
+                    });
+                });
+            }
+
+            setupEventListeners() {
+                window.addEventListener('contextmenu', (e) => {
+                    e.preventDefault();
+                }, { passive: false });
+
+                let lastTouchEnd = 0;
+                document.addEventListener('touchend', (e) => {
+                    const now = Date.now();
+                    if (now - lastTouchEnd <= 300) {
+                        e.preventDefault();
+                    }
+                    lastTouchEnd = now;
+                }, { passive: false });
+
+                window.addEventListener('resize', () => {
+                    this.resizeCanvas();
+                    this.confetti.resize();
+                });
+
+                this.canvas.addEventListener('pointerdown', (e) => this.handlePointerDown(e));
+
+                this.btnRoundToggleEl.addEventListener('click', () => {
+                    this.sound.init();
+                    const nextRound = this.currentRound === 1 ? 2 : 1;
+                    this.startRound(nextRound);
+                });
+
+                this.btnSoundEl.addEventListener('click', () => {
+                    this.sound.muted = !this.sound.muted;
+                    this.soundIconEl.textContent = this.sound.muted ? '🔇' : '🔊';
+                    this.btnSoundEl.classList.toggle('bg-rose-100', this.sound.muted);
+                    this.btnSoundEl.classList.toggle('text-rose-700', this.sound.muted);
+                });
+
+                this.btnResetEl.addEventListener('click', () => {
+                    this.sound.init();
+                    this.loadStage(this.currentStageIndex);
+                });
+
+                this.btnModalViewNormal.addEventListener('click', () => this.minimizeModal());
+                this.btnModalViewFinal.addEventListener('click', () => this.minimizeModal());
+
+                document.getElementById('btn-modal-replay-normal').addEventListener('click', () => {
+                    this.hideModal();
+                    this.loadStage(this.currentStageIndex);
+                });
+
+                document.getElementById('btn-modal-next-normal').addEventListener('click', () => {
+                    this.hideModal();
+                    const stages = this.currentStages;
+                    let nextIdx = this.currentStageIndex + 1;
+
+                    if (nextIdx >= stages.length) {
+                        const nextRound = this.currentRound === 1 ? 2 : 1;
+                        this.startRound(nextRound);
+                    } else {
+                        this.loadStage(nextIdx);
+                    }
+                });
+
+                document.getElementById('btn-same-problem').addEventListener('click', () => {
+                    this.hideModal();
+                    if (this.currentRound === 1) {
+                        this.startRound(1);
+                    } else {
+                        this.startRound(1);
+                    }
+                });
+
+                document.getElementById('btn-hard-problem').addEventListener('click', () => {
+                    this.hideModal();
+                    if (this.currentRound === 1) {
+                        this.startRound(2);
+                    } else {
+                        this.startRound(2);
+                    }
+                });
+            }
+
+            resizeCanvas() {
+                const rect = this.canvas.parentElement.getBoundingClientRect();
+                this.canvas.width = rect.width;
+                this.canvas.height = rect.height;
+            }
+
+            loadStage(index) {
+                if (this.clearTimer) clearTimeout(this.clearTimer);
+                this.currentStageIndex = index;
+                this.currentIndex = 0;
+                this.isCompleted = false;
+                this.completionProgress = 0;
+                this.updateStageButtonsUI();
+                this.hideModal();
+                this.confetti.stop();
+            }
+
+            handlePointerDown(e) {
+                if (this.isCompleted) return;
+
+                const rect = this.canvas.getBoundingClientRect();
+                const touchX = e.clientX - rect.left;
+                const touchY = e.clientY - rect.top;
+
+                const stage = this.currentStages[this.currentStageIndex];
+                const K = stage.vertices.length;
+
+                if (this.currentIndex >= K) return;
+
+                const targetVertex = stage.vertices[this.currentIndex];
+
+                const targetPixelX = (targetVertex.x / 100) * this.canvas.width;
+                const targetPixelY = (targetVertex.y / 100) * this.canvas.height;
+
+                const distance = Math.hypot(touchX - targetPixelX, touchY - targetPixelY);
+                
+                const baseDotRadius = Math.max(8, this.canvas.width * 0.0133);
+                const hitRadius = Math.max(baseDotRadius * 2.2, 22);
+
+                if (distance <= hitRadius) {
+                    this.sound.playTap(this.currentIndex);
+                    this.currentIndex++;
+
+                    if (this.currentIndex >= K) {
+                        this.triggerCompletion();
+                    }
+                }
+            }
+
+            triggerCompletion() {
+                this.isCompleted = true;
+                this.sound.playFanfare();
+                this.confetti.start();
+
+                let startTime = null;
+                const animateFill = (timestamp) => {
+                    if (!startTime) startTime = timestamp;
+                    const elapsed = timestamp - startTime;
+                    this.completionProgress = Math.min(1, elapsed / 800);
+
+                    if (this.completionProgress < 1) {
+                        requestAnimationFrame(animateFill);
+                    }
+                };
+                requestAnimationFrame(animateFill);
+
+                if (this.clearTimer) clearTimeout(this.clearTimer);
+                this.clearTimer = setTimeout(() => {
+                    this.showModalCentered();
+                }, 3000);
+            }
+
+            showModalCentered() {
+                const isFinalStage = (this.currentStageIndex === 8);
+
+                if (isFinalStage) {
+                    if (this.currentRound === 1) {
+                        this.modalSubTextEl.textContent = '1しゅうめ ぜんぶ かんせい！すごいね！';
+                        if (this.btnFinalLeftTop) this.btnFinalLeftTop.textContent = 'おなじ';
+                        if (this.btnFinalRightTop) this.btnFinalRightTop.textContent = 'むずかしい';
+                    } else {
+                        this.modalSubTextEl.textContent = '2しゅうめ ぜんぶ かんせい！すごいね！';
+                        if (this.btnFinalLeftTop) this.btnFinalLeftTop.textContent = 'かんたんな';
+                        if (this.btnFinalRightTop) this.btnFinalRightTop.textContent = 'おなじ';
+                    }
+                    this.modalBtnGroupNormal.classList.add('hidden');
+                    this.modalBtnGroupFinal.classList.remove('hidden');
+                    this.modalBtnGroupFinal.classList.add('flex');
+                } else {
+                    this.modalSubTextEl.textContent = `${this.currentRound}しゅうめ ${this.currentStages[this.currentStageIndex].name} かんせーい！`;
+                    this.modalBtnGroupNormal.classList.remove('hidden');
+                    this.modalBtnGroupNormal.classList.add('flex');
+                    this.modalBtnGroupFinal.classList.add('hidden');
+                }
+
+                this.clearModalEl.className = 'absolute inset-0 z-30 flex items-center justify-center transition-all duration-500 opacity-100 pointer-events-auto bg-slate-900/40 backdrop-blur-sm';
+                this.modalCardEl.className = 'bg-white rounded-3xl p-5 sm:p-6 max-w-md w-[92%] text-center shadow-2xl transition-all duration-500 transform scale-100 border-4 border-sky-300';
+                
+                this.modalFullContentEl.style.display = 'block';
+                this.btnModalViewNormal.style.display = 'inline-flex';
+                this.btnModalViewFinal.style.display = 'inline-flex';
+            }
+
+            minimizeModal() {
+                this.clearModalEl.className = 'absolute inset-0 z-30 flex items-end justify-end p-3 transition-all duration-500 opacity-100 pointer-events-none bg-transparent';
+                this.modalCardEl.className = 'bg-white/95 backdrop-blur-md rounded-2xl p-2.5 max-w-xs shadow-xl transition-all duration-500 border-2 border-sky-300 pointer-events-auto';
+                
+                this.modalFullContentEl.style.display = 'none';
+                this.btnModalViewNormal.style.display = 'none';
+                this.btnModalViewFinal.style.display = 'none';
+            }
+
+            hideModal() {
+                this.clearModalEl.className = 'absolute inset-0 z-30 flex items-center justify-center transition-all duration-500 opacity-0 pointer-events-none bg-slate-900/40 backdrop-blur-sm';
+                this.modalCardEl.className = 'bg-white rounded-3xl p-5 sm:p-6 max-w-md w-[92%] text-center shadow-2xl transition-all duration-500 transform scale-90 border-4 border-sky-300';
+            }
+
+            animate() {
+                this.pulseTimer += 0.05;
+                this.render();
+                requestAnimationFrame(() => this.animate());
+            }
+
+            render() {
+                const w = this.canvas.width;
+                const h = this.canvas.height;
+                const stage = this.currentStages[this.currentStageIndex];
+                const K = stage.vertices.length;
+
+                this.ctx.clearRect(0, 0, w, h);
+
+                // 1. 完成イラスト背景色塗り
+                if (this.isCompleted) {
+                    this.ctx.save();
+                    this.ctx.globalAlpha = this.completionProgress;
+
+                    if (stage.id !== 'cherry' && stage.id !== 'train') {
+                        this.ctx.fillStyle = stage.fillColor;
+                        this.ctx.beginPath();
+                        if (stage.id === 'diamond') {
+                            const outerIndices = this.currentRound === 1 ? [0, 1, 2, 3, 4] : [0, 1, 2, 3, 4, 5, 6, 7];
+                            outerIndices.forEach((vIdx, i) => {
+                                const px = (stage.vertices[vIdx].x / 100) * w;
+                                const py = (stage.vertices[vIdx].y / 100) * h;
+                                if (i === 0) this.ctx.moveTo(px, py);
+                                else this.ctx.lineTo(px, py);
+                            });
+                        } else {
+                            stage.vertices.forEach((v, idx) => {
+                                const px = (v.x / 100) * w;
+                                const py = (v.y / 100) * h;
+                                if (idx === 0) this.ctx.moveTo(px, py);
+                                else this.ctx.lineTo(px, py);
+                            });
+                        }
+                        this.ctx.closePath();
+                        this.ctx.fill();
+                    }
+
+                    if (stage.drawDetails) {
+                        stage.drawDetails(this.ctx, w, h, this.completionProgress, this.currentRound);
+                    }
+                    this.ctx.restore();
+                }
+
+                // 2. 直線描画
+                if (this.currentIndex > 0) {
+                    this.ctx.save();
+                    this.ctx.strokeStyle = stage.strokeColor || '#0284C7';
+                    this.ctx.lineWidth = Math.max(5, w * 0.009);
+                    this.ctx.lineCap = 'round';
+                    this.ctx.lineJoin = 'round';
+
+                    this.ctx.beginPath();
+                    const linePointsCount = Math.min(this.currentIndex, K);
+                    for (let i = 0; i < linePointsCount; i++) {
+                        const px = (stage.vertices[i].x / 100) * w;
+                        const py = (stage.vertices[i].y / 100) * h;
+                        if (i === 0) this.ctx.moveTo(px, py);
+                        else this.ctx.lineTo(px, py);
+                    }
+                    this.ctx.stroke();
+                    this.ctx.restore();
+                }
+
+                // 3. 点および動的数字ラベルの描画
+                const baseDotRadius = Math.max(8, w * 0.0133);
+                const drawnPositions = [];
+                const renderItems = [];
+
+                stage.vertices.forEach((v, idx) => {
+                    const px = (v.x / 100) * w;
+                    const py = (v.y / 100) * h;
+
+                    const existingPos = drawnPositions.find(p => Math.hypot(p.px - px, p.py - py) < 3);
+                    if (existingPos) return;
+
+                    const sameLocationIndices = [];
+                    stage.vertices.forEach((v2, i2) => {
+                        const px2 = (v2.x / 100) * w;
+                        const py2 = (v2.y / 100) * h;
+                        if (Math.hypot(px2 - px, py2 - py) < 3) {
+                            sameLocationIndices.push(i2);
+                        }
+                    });
+
+                    // 次の数字をタップした後に数字ラベルを変更する処理（例: 1をタップした後すぐにではなく2を押した後に1の数字を変える）
+                    let activeStepIdx = sameLocationIndices[0];
+                    for (let m = 1; m < sameLocationIndices.length; m++) {
+                        if (this.currentIndex >= sameLocationIndices[m - 1] + 2) {
+                            activeStepIdx = sameLocationIndices[m];
+                        }
+                    }
+
+                    const labelText = `${activeStepIdx + 1}`;
+                    const isPassed = sameLocationIndices.some(i => this.currentIndex > i);
+                    
+                    let isTarget = false;
+                    if (!this.isCompleted) {
+                        if (this.currentIndex < K) {
+                            isTarget = (activeStepIdx === this.currentIndex);
+                        } else if (this.currentIndex === K) {
+                            isTarget = (activeStepIdx === 0);
+                        }
+                    }
+
+                    renderItems.push({
+                        px, py, labelText, isPassed, isTarget
+                    });
+
+                    drawnPositions.push({ px, py });
+                });
+
+                renderItems.sort((a, b) => {
+                    if (a.isTarget && !b.isTarget) return 1;
+                    if (!a.isTarget && b.isTarget) return -1;
+                    return 0;
+                });
+
+                renderItems.forEach(item => {
+                    const { px, py, labelText, isPassed, isTarget } = item;
+
+                    let dotColor = isPassed ? '#10B981' : '#64748B';
+                    let textColor = isPassed ? '#065F46' : '#1E293B';
+                    let renderRadius = baseDotRadius;
+
+                    if (isTarget && !this.isCompleted) {
+                        if (this.hintLevel >= 1) {
+                            dotColor = '#F59E0B';
+                            textColor = '#78350F';
+                        }
+                        if (this.hintLevel === 2) {
+                            renderRadius = baseDotRadius * (1 + Math.sin(this.pulseTimer * 4) * 0.18);
+
+                            this.ctx.save();
+                            const ringRadius = baseDotRadius * (1.6 + Math.sin(this.pulseTimer * 4) * 0.4);
+                            this.ctx.strokeStyle = '#F59E0B';
+                            this.ctx.lineWidth = 3;
+                            this.ctx.globalAlpha = 0.7 - Math.sin(this.pulseTimer * 4) * 0.3;
+                            this.ctx.beginPath();
+                            this.ctx.arc(px, py, ringRadius, 0, Math.PI * 2);
+                            this.ctx.stroke();
+                            this.ctx.restore();
+                        }
+                    }
+
+                    this.ctx.save();
+                    this.ctx.beginPath();
+                    this.ctx.arc(px, py, renderRadius, 0, Math.PI * 2);
+                    this.ctx.fillStyle = dotColor;
+                    this.ctx.fill();
+
+                    this.ctx.strokeStyle = '#FFFFFF';
+                    this.ctx.lineWidth = Math.max(2, renderRadius * 0.25);
+                    this.ctx.stroke();
+
+                    this.ctx.fillStyle = textColor;
+                    this.ctx.font = `${isTarget ? '900' : '800'} ${Math.max(13, renderRadius * (isTarget ? 1.5 : 1.35))}px 'M PLUS Rounded 1c', sans-serif`;
+                    this.ctx.textAlign = 'center';
+                    this.ctx.textBaseline = 'middle';
+                    
+                    const numberY = py - renderRadius - (isTarget ? 14 : 12);
+                    
+                    this.ctx.strokeStyle = '#FFFFFF';
+                    this.ctx.lineWidth = isTarget ? 5 : 4;
+                    this.ctx.strokeText(labelText, px, numberY);
+                    this.ctx.fillText(labelText, px, numberY);
+
+                    this.ctx.restore();
+                });
+            }
+        }
+
+        window.addEventListener('load', () => {
+            new DotGame();
+        });
+    </script>
+</body>
+</html>

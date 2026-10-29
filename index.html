@@ -3,10 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-       <title>てんつなぎ</title>
-    <meta property="og:title" content="てんつなぎ">
-    <meta property="og:description" content="【自立活動】目と手の協応/手指の操作性を鍛えるてんつなぎアプリです。">
-    <meta property="og:type" content="website">
+    <title>てんつなぎ２ (Dot to Dot 2)</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Google Fonts: M PLUS Rounded 1c -->
@@ -775,27 +772,28 @@
                 id: 'diamond',
                 name: 'ダイヤ',
                 vertices: [
-                    { x: 50, y: 42 },   /* 10 */
-                    { x: 32, y: 22 },   /* 1  */
-                    { x: 50, y: 22 },   /* 2  */
-                    { x: 68, y: 22 },   /* 3  */
-                    { x: 50, y: 42 },   /* 10 */
-                    { x: 34, y: 63.5 }, /* 7  */
-                    { x: 50, y: 85 },   /* 6  */
-                    { x: 66, y: 63.5 }, /* 5  */
-                    { x: 50, y: 42 },   /* 10 */
-                    { x: 82, y: 42 },   /* 4  */
-                    { x: 68, y: 22 },   /* 3  */
-                    { x: 50, y: 42 },   /* 10 */
-                    { x: 34, y: 63.5 }, /* 7  */
-                    { x: 18, y: 42 },   /* 8  */
-                    { x: 50, y: 42 },   /* 10 */
-                    { x: 82, y: 42 },   /* 4  */
-                    { x: 66, y: 63.5 }, /* 5  */
-                    { x: 50, y: 42 },   /* 10 */
-                    { x: 18, y: 42 },   /* 8  */
-                    { x: 32, y: 22 },   /* 1  */
-                    { x: 50, y: 42 }    /* 10 */
+                    { x: 50, y: 42 },   /* 1: 中央 */
+                    { x: 32, y: 22 },   /* 2: 左上 */
+                    { x: 50, y: 22 },   /* 3: 上中央 */
+                    { x: 68, y: 22 },   /* 4: 右上 */
+                    { x: 50, y: 42 },   /* 5: 中央 */
+                    { x: 34, y: 63.5 }, /* 6: 左下 */
+                    { x: 50, y: 85 },   /* 7: 最下部 */
+                    { x: 66, y: 63.5 }, /* 8: 右下 */
+                    { x: 50, y: 42 },   /* 9: 中央 */
+                    { x: 18, y: 42 },   /* 10: 左端 */
+                    { x: 32, y: 22 },   /* 11: 左上 */
+                    { x: 50, y: 42 },   /* 12: 中央 */
+                    { x: 66, y: 63.5 }, /* 13: 右下 */
+                    { x: 82, y: 42 },   /* 14: 右端 */
+                    { x: 50, y: 42 },   /* 15: 中央 */
+                    { x: 18, y: 42 },   /* 16: 左端 */
+                    { x: 34, y: 63.5 }, /* 17: 左下 */
+                    { x: 50, y: 42 },   /* 18: 中央 */
+                    { x: 68, y: 22 },   /* 19: 右上 */
+                    { x: 82, y: 42 },   /* 20: 右端 */
+                    { x: 50, y: 42 },   /* 21: 中央 */
+                    { x: 50, y: 85 }    /* 22: 最下部 */
                 ],
                 fillColor: '#67E8F9', strokeColor: '#0891B2', drawDetails: DRAW_DETAILS.diamond
             },
@@ -1459,10 +1457,14 @@
                         this.ctx.fillStyle = stage.fillColor;
                         this.ctx.beginPath();
                         if (stage.id === 'diamond') {
-                            const outerIndices = this.currentRound === 1 ? [0, 1, 2, 3, 4] : [1, 2, 3, 9, 7, 6, 5, 13];
-                            outerIndices.forEach((vIdx, i) => {
-                                const px = (stage.vertices[vIdx].x / 100) * w;
-                                const py = (stage.vertices[vIdx].y / 100) * h;
+                            const diamondOuter = [
+                                { x: 32, y: 22 }, { x: 50, y: 22 }, { x: 68, y: 22 },
+                                { x: 82, y: 42 }, { x: 66, y: 63.5 }, { x: 50, y: 85 },
+                                { x: 34, y: 63.5 }, { x: 18, y: 42 }
+                            ];
+                            diamondOuter.forEach((v, i) => {
+                                const px = (v.x / 100) * w;
+                                const py = (v.y / 100) * h;
                                 if (i === 0) this.ctx.moveTo(px, py);
                                 else this.ctx.lineTo(px, py);
                             });
